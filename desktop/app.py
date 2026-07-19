@@ -93,7 +93,7 @@ def _run_mac_tray(port: int):
 
         @rumps.clicked("打开设置…")
         def open_settings(self, _):
-            _open_url(f"https://localhost:{self._port}/settings")
+            _open_url(f"http://localhost:{self._port}/settings")
 
         @rumps.clicked("在 Excel 中加载插件")
         def load_addin(self, _):
@@ -110,7 +110,7 @@ def _run_mac_tray(port: int):
                     "关于 Excel 公式助手 v1.0",
                     "AI 驱动的 Excel 公式生成工具\n\n"
                     f"API Key: {'✅ 已配置' if configured else '⚠️ 未配置'}\n"
-                    "服务器: https://localhost:8100\n\n"
+                    "服务器: http://localhost:8100\n\n"
                     "在 Excel 侧边栏中用自然语言描述需求，AI 自动生成公式。",
                 )
             except Exception:
@@ -147,7 +147,7 @@ def _run_win_tray(port: int):
     menu = pystray.Menu(
         pystray.MenuItem("状态: " + ("✅ 已配置" if _check_api_key() else "⚠️ 未配置"), _noop, enabled=False),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("打开设置…", lambda: _open_url(f"https://localhost:{port}/settings"), default=True),
+        pystray.MenuItem("打开设置…", lambda: _open_url(f"http://localhost:{port}/settings"), default=True),
         pystray.MenuItem("在 Excel 中加载插件", lambda: _open_file_location(_find_manifest()) if _find_manifest() else None),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("退出", lambda icon: icon.stop()),

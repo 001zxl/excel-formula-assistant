@@ -301,31 +301,23 @@ def _find_free_port(start: int = 8100, attempts: int = 4) -> int:
 
 
 def run_server(host: str = "127.0.0.1", port: int | None = None) -> int:
-    """启动 FastAPI 服务器（HTTPS）。返回实际端口号。
+    """启动 FastAPI 服务器（HTTP）。返回实际端口号。
 
-    证书自动生成（首次启动），保存在 ~/.excel-formula-assistant/。
+    本地 localhost 使用 HTTP，避免自签名证书在浏览器被拦截。
+    Office 侧边栏加载本地插件允许 HTTP。
     """
     import uvicorn
 
     if port is None:
         port = _find_free_port()
 
-    config_dir = get_config_dir()
-    cert_file = config_dir / "cert.pem"
-    key_file = config_dir / "key.pem"
-
-    if not cert_file.exists() or not key_file.exists():
-        _generate_self_signed_cert(cert_file, key_file)
-
-    logger.info(f"Starting server on https://{host}:{port}")
+    logger.info(f"Starting server on http://{host}:{port}")
     logger.info(f"Static files: {_STATIC_DIR}")
 
     uvicorn.run(
         app,
         host=host,
         port=port,
-        ssl_keyfile=str(key_file),
-        ssl_certfile=str(cert_file),
         log_level="info",
     )
     return port

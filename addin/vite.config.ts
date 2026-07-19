@@ -11,12 +11,12 @@ export default defineConfig({
     },
     proxy: {
       "/api": {
-        target: "https://localhost:8100",
+        target: "http://localhost:8100",
         secure: false,
         changeOrigin: true,
       },
       "/health": {
-        target: "https://localhost:8100",
+        target: "http://localhost:8100",
         secure: false,
         changeOrigin: true,
       },
