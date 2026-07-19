@@ -335,26 +335,87 @@ def _ensure_ssl_cert() -> tuple[Path, Path]:
 
 
 def _generate_self_signed_cert(cert_path: Path, key_path: Path) -> None:
-    """生成自签名 SSL 证书。"""
-    import subprocess
+    """生成自签名 SSL 证书（纯 Python，不依赖外部 CLI，Windows/macOS 通用）。"""
+    import datetime
+    import ipaddress
 
-    logger.info("Generating self-signed SSL certificate...")
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives.serialization import (
+        Encoding,
+        PrivateFormat,
+        NoEncryption,
+    )
+
+    logger.info("Generating self-signed SSL certificate (cryptography)...")
     cert_path.parent.mkdir(parents=True, exist_ok=True)
 
-    subprocess.run(
-        [
-            "openssl", "req", "-x509", "-newkey", "rsa:2048",
-            "-keyout", str(key_path),
-            "-out", str(cert_path),
-            "-days", "3650",
-            "-nodes",
-            "-subj", "/CN=localhost/O=ExcelFormulaAI",
-            "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1",
-        ],
-        check=True,
-        capture_output=True,
+    # 1. 生成 RSA 私钥
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+    # 2. 构建 X.509 证书
+    subject = issuer = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, "localhost"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "ExcelFormulaAI"),
+    ])
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(private_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now)
+        .not_valid_after(now + datetime.timedelta(days=3650))
+        # SAN：浏览器 / Excel 校验证书域名必须匹配
+        .add_extension(
+            x509.SubjectAlternativeName([
+                x509.DNSName("localhost"),
+                x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
+            ]),
+            critical=False,
+        )
+        # 标记为终端实体证书（非 CA）
+        .add_extension(
+            x509.BasicConstraints(ca=False, path_length=None),
+            critical=True,
+        )
+        # 密钥用途：数字签名 + 密钥加密（TLS 握手必需）
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                key_encipherment=True,
+                content_commitment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        # 扩展密钥用途：服务器认证
+        .add_extension(
+            x509.ExtendedKeyUsage([x509.oid.ExtendedKeyUsageOID.SERVER_AUTH]),
+            critical=False,
+        )
+        .sign(private_key, hashes.SHA256())
+    )
+
+    # 3. 写入磁盘
+    key_path.write_bytes(
+        private_key.private_bytes(
+            Encoding.PEM,
+            PrivateFormat.TraditionalOpenSSL,
+            NoEncryption(),
+        )
     )
     key_path.chmod(0o600)
+    cert_path.write_bytes(cert.public_bytes(Encoding.PEM))
     logger.info(f"SSL cert created: {cert_path}")
 
 

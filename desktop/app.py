@@ -174,12 +174,18 @@ def _run_mac_tray(port: int):
     import rumps
     from desktop.server import _ensure_ssl_cert
 
-    # 确保证书存在 + 添加到系统信任库
-    _ensure_ssl_cert()
-    _install_cert_trust()
+    try:
+        # 确保证书存在 + 添加到系统信任库
+        _ensure_ssl_cert()
+        _install_cert_trust()
 
-    server_thread = threading.Thread(target=_start_server, args=(port,), daemon=True)
-    server_thread.start()
+        server_thread = threading.Thread(target=_start_server, args=(port,), daemon=True)
+        server_thread.start()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"\n[致命错误] 启动失败: {e}")
+        sys.exit(1)
 
     class ExcelFormulaApp(rumps.App):
         def __init__(self):
@@ -239,21 +245,33 @@ def _run_win_tray(port: int):
     import pystray
     from desktop.server import _ensure_ssl_cert
 
-    _configure_windows_firewall()
+    try:
+        _configure_windows_firewall()
 
-    # 确保证书存在 + 添加到系统信任库
-    _ensure_ssl_cert()
-    _install_cert_trust()
+        # 确保证书存在 + 添加到系统信任库
+        _ensure_ssl_cert()
+        _install_cert_trust()
 
-    server_thread = threading.Thread(target=_start_server, args=(port,), daemon=True)
-    server_thread.start()
-    import time; time.sleep(3)  # Windows 启动较慢，多等等
+        server_thread = threading.Thread(target=_start_server, args=(port,), daemon=True)
+        server_thread.start()
+        import time; time.sleep(3)  # Windows 启动较慢，多等等
 
-    if _check_port_accessible(port):
-        print(f"[启动] 服务器已就绪: https://localhost:{port}")
-    else:
-        print(f"[启动] 警告: 端口 {port} 无法访问，可能是防火墙或杀毒软件拦截")
-        print(f"[启动] 请检查 Windows 安全中心，允许 ExcelFormulaAI.exe 通过防火墙")
+        if _check_port_accessible(port):
+            print(f"[启动] 服务器已就绪: https://localhost:{port}")
+        else:
+            print(f"[启动] 警告: 端口 {port} 无法访问，可能是防火墙或杀毒软件拦截")
+            print(f"[启动] 请检查 Windows 安全中心，允许 ExcelFormulaAI.exe 通过防火墙")
+    except Exception as e:
+        # 崩溃保护：任何异常都要显示给用户，不能闪退
+        import traceback
+        traceback.print_exc()
+        print(f"\n[致命错误] 启动失败: {e}")
+        print("请截图以上错误信息并反馈。按 Enter 键退出...")
+        try:
+            input()
+        except EOFError:
+            pass
+        sys.exit(1)
 
     def _load_icon():
         from PIL import Image as PILImage, ImageDraw
