@@ -1,6 +1,6 @@
 """统一桌面服务器 — 同时服务 React 前端 + AI API 代理。
 
-运行在 localhost:8100 (HTTP)，一个端口解决所有需求：
+运行在 https://localhost:8100 (HTTPS)，一个端口解决所有需求：
   /                    → React 静态文件（Excel 侧边栏插件）
   /api/generate-formula → AI 公式生成
   /api/settings         → API Key 读写
