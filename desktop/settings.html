@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excel 公式助手 — 设置</title>
+  <style>
+    :root {
+      --primary: #2F5496;
+      --success: #107C10;
+      --danger: #D13438;
+      --bg: #F5F5F5;
+      --card-bg: #FFFFFF;
+      --border: #E1E1E1;
+      --text: #333333;
+      --text-secondary: #666666;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container { max-width: 480px; width: 100%; }
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 32px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--primary);
+    }
+    .subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .input-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    input[type="text"], input[type="password"] {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      font-family: "SF Mono", "Consolas", monospace;
+    }
+    input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(47,84,150,0.1); }
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover:not(:disabled) { background: #1E3A6E; }
+    .btn-test { background: var(--bg); color: var(--primary); border: 1px solid var(--primary); }
+    .btn-test:hover:not(:disabled) { background: #D6E4F0; }
+    .btn-link {
+      display: inline-block;
+      margin-top: 12px;
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 12px;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+    .btn-link:hover { text-decoration: underline; }
+    .status {
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-ok { background: #E8F5E9; color: var(--success); }
+    .status-warn { background: #FFF3E0; color: #E65100; }
+    .status-err { background: #FDE7E9; color: var(--danger); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot-ok { background: var(--success); }
+    .dot-warn { background: #FF8C00; }
+    .dot-err { background: var(--danger); }
+    .hint {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+    .steps {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    .steps ol { padding-left: 20px; }
+    .steps li { font-size: 13px; color: var(--text-secondary); line-height: 1.8; }
+    code {
+      background: var(--bg);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-family: "SF Mono", monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>⚡ Excel 公式助手</h1>
+      <p class="subtitle">AI 驱动的 Excel 公式生成工具</p>
+
+      <div id="statusBar" class="status status-warn">
+        <span class="dot dot-warn"></span>
+        <span id="statusText">检查中…</span>
+      </div>
+
+      <label for="apiKey">DeepSeek API Key</label>
+      <div class="input-row">
+        <input
+          type="password"
+          id="apiKey"
+          placeholder="sk-xxxxxxxxxxxxxxxx"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button class="btn btn-primary" id="btnSave" onclick="saveKey()">保存</button>
+      </div>
+      <button class="btn btn-test" id="btnTest" onclick="testConnection()" style="width:100%">
+        测试连接
+      </button>
+      <p class="hint">
+        每个用户需要自己的 DeepSeek API Key。<br />
+        在 <a href="https://platform.deepseek.com/api_keys" target="_blank" style="color:var(--primary)">platform.deepseek.com/api_keys</a> 获取。
+      </p>
+    </div>
+
+    <div class="card steps">
+      <h2 style="font-size:16px;font-weight:600;margin-bottom:12px">📋 使用步骤</h2>
+      <ol>
+        <li>在上方填写你的 DeepSeek API Key 并保存</li>
+        <li>打开 Excel，点击 <strong>插入 → 加载项 → 我的加载项</strong></li>
+        <li>上传 <code>manifest.xml</code> 文件加载侧边栏插件</li>
+        <li>打开你的数据表格，选中要写入公式的单元格</li>
+        <li>在侧边栏输入需求（如"计算G列中位数"），AI 自动生成公式</li>
+      </ol>
+      <button class="btn-link" onclick="openManifest()" style="margin-top:16px;font-size:13px">
+        📄 查看 manifest.xml 文件
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    async function loadStatus() {
+      try {
+        const r = await fetch(`${API_BASE}/api/settings`);
+        const data = await r.json();
+        updateStatus(data);
+      } catch {
+        document.getElementById("statusBar").className = "status status-err";
+        document.getElementById("statusText").textContent = "服务未启动";
+      }
+    }
+
+    function updateStatus(data) {
+      const bar = document.getElementById("statusBar");
+      const text = document.getElementById("statusText");
+      if (data.configured) {
+        bar.className = "status status-ok";
+        text.textContent = `✅ 已配置 · Key: ${data.api_key_preview} · 模型: ${data.model}`;
+        document.getElementById("apiKey").placeholder = "已配置（输入新 Key 可更换）";
+      } else {
+        bar.className = "status status-warn";
+        text.textContent = "⚠️ 尚未配置 API Key，请填写下方输入框";
+      }
+    }
+
+    async function saveKey() {
+      const key = document.getElementById("apiKey").value.trim();
+      if (!key) { alert("请输入 API Key"); return; }
+
+      const btn = document.getElementById("btnSave");
+      btn.disabled = true;
+      btn.textContent = "保存中…";
+
+      try {
+        const r = await fetch(`${API_BASE}/api/settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ api_key: key }),
+        });
+        const data = await r.json();
+        if (data.ok) {
+          document.getElementById("apiKey").value = "";
+          alert("API Key 已保存！");
+          loadStatus();
+        } else {
+          alert("保存失败: " + data.message);
+        }
+      } catch (e) {
+        alert("连接失败: " + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "保存";
+      }
+    }
+
+    async function testConnection() {
+      const btn = document.getElementById("btnTest");
+      btn.disabled = true;
+      btn.textContent = "测试中…";
+
+      try {
+        const r = await fetch(`${API_BASE}/health`);
+        const data = await r.json();
+        if (data.configured) {
+          alert(`✅ 连接正常\n模型: ${data.model}\n状态: ${data.status}`);
+        } else {
+          alert("⚠️ 服务运行中但未配置 API Key，请先保存 Key");
+        }
+      } catch (e) {
+        alert("❌ 连接失败: " + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "测试连接";
+      }
+    }
+
+    function openManifest() {
+      // 尝试打开 manifest.xml 所在文件夹
+      // 桌面应用中通过自定义协议或直接提示路径
+      window.open(`${API_BASE}/manifest.xml`, "_blank");
+    }
+
+    // 页面加载时获取状态
+    loadStatus();
+  </script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+name: Build (macOS + Windows)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            artifact-name: ExcelFormulaAI-macOS
+            artifact-path: dist/ExcelFormulaAI.dmg
+          - os: windows-latest
+            artifact-name: ExcelFormulaAI-Windows
+            artifact-path: dist/ExcelFormulaAI.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python dependencies
+        run: pip install -r desktop/requirements.txt
+
+      - name: Install Node dependencies
+        working-directory: addin
+        run: npm install
+
+      - name: Build React frontend
+        working-directory: addin
+        run: npm run build
+
+      - name: Copy static files
+        run: |
+          # macOS
+          rm -rf desktop/static
+          cp -r addin/dist desktop/static
+          cp addin/public/icon.png desktop/icon.png 2>/dev/null || true
+        shell: bash
+
+      - name: Run PyInstaller
+        run: python -m PyInstaller desktop/ExcelFormulaAI.spec --clean --noconfirm --distpath dist --workpath build
+        shell: bash
+
+      - name: Create DMG (macOS only)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          TMP_DMG=$(mktemp -d)
+          cp -R dist/ExcelFormulaAI.app "$TMP_DMG/"
+          ln -s /Applications "$TMP_DMG/Applications"
+          hdiutil create \
+            -volname "Excel公式助手" \
+            -srcfolder "$TMP_DMG" \
+            -ov -format UDZO \
+            dist/ExcelFormulaAI.dmg
+          rm -rf "$TMP_DMG"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-path }}

@@ -1,0 +1,354 @@
+/* === Excel 公式助手 - 侧边栏样式 === */
+
+:root {
+  --primary: #2F5496;
+  --primary-light: #D6E4F0;
+  --success: #107C10;
+  --warning: #FF8C00;
+  --danger: #D13438;
+  --bg: #FFFFFF;
+  --bg-alt: #F5F5F5;
+  --border: #E1E1E1;
+  --text: #333333;
+  --text-secondary: #666666;
+  --radius: 6px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  overflow-x: hidden;
+}
+
+/* === App === */
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+.app-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: var(--text-secondary);
+}
+
+/* === Status Bar === */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.ok { background: var(--success); }
+.status-dot.err { background: var(--danger); }
+
+.status-info { margin-left: auto; }
+
+.btn-refresh {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--text-secondary);
+  padding: 2px 6px;
+}
+.btn-refresh:hover { color: var(--primary); }
+
+/* === Tabs === */
+.tabs {
+  display: flex;
+  border-bottom: 2px solid var(--border);
+}
+
+.tab {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.tab:hover { color: var(--primary); }
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+.tab-content { flex: 1; overflow-y: auto; padding: 12px; }
+
+/* === Error Banner === */
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #FDE7E9;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.error-banner button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.loading {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-secondary);
+  animation: pulse 1.5s ease infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.insert-status {
+  text-align: center;
+  padding: 8px;
+  background: #E8F5E9;
+  color: var(--success);
+  border-radius: var(--radius);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+/* === Sheet Context === */
+.sheet-context { margin-bottom: 12px; }
+.sheet-context.empty { color: var(--text-secondary); font-style: italic; }
+
+.sc-header { font-weight: 600; margin-bottom: 6px; }
+.sc-meta { font-weight: normal; font-size: 11px; color: var(--text-secondary); margin-left: 8px; }
+
+.sc-columns { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.sc-col-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 12px;
+  font-size: 11px;
+  cursor: default;
+}
+
+/* === Chat Input === */
+.chat-input { margin-bottom: 12px; }
+
+.input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.input-row input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-row input:focus { border-color: var(--primary); }
+
+.btn-submit {
+  width: 44px;
+  height: 44px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.btn-submit:hover:not(:disabled) { background: #1E3A6E; }
+.btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-examples-toggle {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-top: 4px;
+}
+
+.examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+.example-btn {
+  padding: 4px 10px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.example-btn:hover { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+
+/* === Formula Preview === */
+.formula-preview {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.fp-formula-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.fp-formula {
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 15px;
+  color: var(--primary);
+  background: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+.fp-confidence {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.conf-high { background: #E8F5E9; color: var(--success); }
+.conf-medium { background: #FFF3E0; color: var(--warning); }
+.conf-low { background: #FDE7E9; color: var(--danger); }
+
+.fp-explanation { font-size: 13px; color: var(--text); margin-bottom: 12px; line-height: 1.5; }
+
+.btn-insert {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  background: var(--success);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.2s;
+  margin-bottom: 12px;
+}
+
+.btn-insert:hover { background: #0B6E0B; }
+
+.fp-alt { margin-bottom: 8px; font-size: 12px; }
+.fp-alt code {
+  display: inline-block;
+  margin: 2px 4px;
+  padding: 2px 6px;
+  background: white;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.fp-warnings { margin-bottom: 8px; }
+.fp-warnings div {
+  font-size: 12px;
+  color: var(--warning);
+  padding: 2px 0;
+}
+
+.fp-deps { font-size: 12px; color: var(--text-secondary); }
+.fp-deps div { padding: 1px 0 1px 12px; }
+
+.fp-error { color: var(--danger); font-size: 13px; }
+
+/* === History === */
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.btn-clear {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.history-empty { text-align: center; padding: 40px 20px; }
+.history-empty p { color: var(--text-secondary); margin-bottom: 4px; }
+.hint { font-size: 11px; color: #999; }
+
+.history-item {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.history-item:hover { border-color: var(--primary); background: var(--primary-light); }
+
+.hi-header { display: flex; gap: 8px; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+.hi-request { font-size: 13px; color: var(--text); margin-bottom: 4px; }
+.hi-formula {
+  font-family: "SF Mono", "Consolas", monospace;
+  font-size: 13px;
+  color: var(--primary);
+  background: white;
+  padding: 3px 8px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* === Settings === */
+.settings h3 { margin-bottom: 12px; }
+
+.setting-item { margin-bottom: 10px; }
+.setting-item label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.setting-item input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  background: var(--bg-alt);
+}
+
+.settings .hint { margin-top: 16px; }

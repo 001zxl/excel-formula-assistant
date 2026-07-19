@@ -1,0 +1,5 @@
+# Python 3.10+ 要求（MCP SDK 最低版本）
+httpx>=0.25.0
+openpyxl>=3.1.0
+pydantic>=2.0.0
+mcp>=1.0.0
