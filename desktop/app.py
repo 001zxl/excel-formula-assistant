@@ -132,14 +132,19 @@ def _check_port_accessible(port: int, timeout: float = 3.0) -> bool:
 
 
 def _install_cert_trust():
-    """将自签名证书添加到系统信任库（避免浏览器和 Excel 拦截）。"""
+    """将自签名证书添加到系统信任库（避免浏览器和 Excel 拦截）。
+
+    Windows 上会尝试多种方法，确保至少一种成功。
+    """
     from pathlib import Path
+    import subprocess
+
     cert_path = Path.home() / ".excel-formula-assistant" / "cert.pem"
     if not cert_path.exists():
+        print("[证书] 证书文件不存在，跳过信任安装")
         return
 
     if sys.platform == "darwin":
-        import subprocess
         try:
             subprocess.run(
                 ["security", "add-trusted-cert", "-d", "-r", "trustRoot",
@@ -147,23 +152,121 @@ def _install_cert_trust():
                  str(cert_path)],
                 capture_output=True, timeout=10,
             )
-            print("[证书] 已添加到 macOS 钥匙串信任库")
+            print("[证书] ✅ 已添加到 macOS 钥匙串信任库")
         except Exception as e:
-            print(f"[证书] macOS 信任添加失败（非致命）: {e}")
+            print(f"[证书] ⚠️ macOS 信任添加失败: {e}")
 
     elif sys.platform == "win32":
-        import subprocess
+        _install_cert_trust_windows(cert_path)
+
+
+def _install_cert_trust_windows(cert_path: Path):
+    """Windows 证书信任安装 — 多方法回退确保成功。"""
+    import subprocess
+    import time
+
+    print("=" * 60)
+    print("[证书] 正在将自签名证书添加到 Windows 受信任根...")
+    print(f"[证书] 证书路径: {cert_path}")
+    print("=" * 60)
+
+    # ---- 方法 1: certutil（不需管理员）----
+    print("[证书] 方法 1/3: certutil...")
+    try:
+        r = subprocess.run(
+            ["certutil", "-addstore", "-user", "Root", str(cert_path)],
+            capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode == 0:
+            print("[证书] ✅ 方法 1 成功 — 证书已信任")
+            _verify_cert_trust()
+            return
+        else:
+            # certutil 返回非 0 但证书可能已经在信任库中
+            if "已经" in r.stdout or "already" in r.stdout.lower() or "已存在" in r.stdout:
+                print("[证书] ✅ 证书已存在于信任库中（无需重复添加）")
+                _verify_cert_trust()
+                return
+            print(f"[证书] 方法 1 返回非零: {r.returncode}")
+            print(f"[证书] stdout: {r.stdout.strip()[:200]}")
+            print(f"[证书] stderr: {r.stderr.strip()[:200]}")
+    except subprocess.TimeoutExpired:
+        print("[证书] 方法 1 超时（可能弹出确认对话框）")
+    except FileNotFoundError:
+        print("[证书] 方法 1 跳过 — certutil 不可用")
+    except Exception as e:
+        print(f"[证书] 方法 1 异常: {e}")
+
+    # ---- 方法 2: PowerShell Import-Certificate ----
+    print("[证书] 方法 2/3: PowerShell...")
+    try:
+        ps_cmd = (
+            f'Import-Certificate -FilePath "{cert_path}" '
+            f"-CertStoreLocation Cert:\\CurrentUser\\Root"
+        )
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive",
+             "-Command", ps_cmd],
+            capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode == 0:
+            print("[证书] ✅ 方法 2 成功 — 证书已信任")
+            _verify_cert_trust()
+            return
+        else:
+            print(f"[证书] 方法 2 返回非零: {r.returncode}")
+            if r.stderr.strip():
+                print(f"[证书] stderr: {r.stderr.strip()[:200]}")
+    except subprocess.TimeoutExpired:
+        print("[证书] 方法 2 超时")
+    except Exception as e:
+        print(f"[证书] 方法 2 异常: {e}")
+
+    # ---- 方法 3: 打开 Windows 证书导入向导（手动）----
+    print("[证书] 方法 3/3: 打开证书导入向导...")
+    print("")
+    print("  ╔══════════════════════════════════════════════════╗")
+    print("  ║  即将弹出 Windows 证书导入窗口                    ║")
+    print("  ║  请按以下步骤操作:                                ║")
+    print("  ║  1. 点击「安装证书」                              ║")
+    print("  ║  2. 选择「当前用户」                              ║")
+    print("  ║  3. 选择「受信任的根证书颁发机构」                ║")
+    print("  ║  4. 点击「完成」→「是」确认                       ║")
+    print("  ╚══════════════════════════════════════════════════╝")
+    print("")
+
+    try:
+        os.startfile(str(cert_path))  # type: ignore[attr-defined]
+        print("[证书] 已打开证书文件，按向导操作后即可信任。")
+        # 给用户时间操作
+        time.sleep(2)
+    except Exception as e:
+        print(f"[证书] 无法打开证书导入向导: {e}")
+        print(f"[证书] 请手动双击此文件导入: {cert_path}")
+
+
+def _verify_cert_trust():
+    """验证证书是否已被系统信任。"""
+    import subprocess
+    import ssl
+    import socket
+
+    try:
+        ctx = ssl.create_default_context()
+        # 对 localhost 发起测试连接（如果服务器已在运行）
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(3)
         try:
-            r = subprocess.run(
-                ["certutil", "-addstore", "-user", "Root", str(cert_path)],
-                capture_output=True, text=True, timeout=10,
-            )
-            if r.returncode == 0:
-                print("[证书] 已添加到 Windows 受信任根证书")
-            else:
-                print(f"[证书] Windows 信任添加失败: {r.stderr.strip()}")
-        except Exception as e:
-            print(f"[证书] Windows 信任添加异常（非致命）: {e}")
+            s.connect(("127.0.0.1", 8100))
+            ssl_sock = ctx.wrap_socket(s, server_hostname="localhost")
+            ssl_sock.close()
+            print("[证书] 🔒 验证通过 — 系统已信任此证书")
+        except (ConnectionRefusedError, OSError):
+            print("[证书] ℹ️ 服务器尚未启动，跳过连接验证")
+        except ssl.SSLError as e:
+            print(f"[证书] ⚠️ SSL 验证失败（证书可能未被信任）: {e}")
+    except Exception as e:
+        print(f"[证书] ℹ️ 验证跳过: {e}")
 
 
 # ====================================================================
