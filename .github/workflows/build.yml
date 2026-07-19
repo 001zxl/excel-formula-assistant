@@ -3,7 +3,7 @@ name: Build (macOS + Windows)
 on:
   push:
     branches: [main]
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   build:
@@ -32,8 +32,13 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install Python dependencies
+      - name: Install Python dependencies (macOS)
+        if: runner.os == 'macOS'
         run: pip install -r desktop/requirements.txt
+
+      - name: Install Python dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: pip install pystray pillow pyinstaller fastapi "uvicorn[standard]" httpx openpyxl
 
       - name: Install Node dependencies
         working-directory: addin
@@ -43,21 +48,44 @@ jobs:
         working-directory: addin
         run: npm run build
 
-      - name: Copy static files
+      - name: Copy static files (macOS)
+        if: runner.os == 'macOS'
         run: |
-          # macOS
           rm -rf desktop/static
           cp -r addin/dist desktop/static
           cp addin/public/icon.png desktop/icon.png 2>/dev/null || true
-        shell: bash
 
-      - name: Run PyInstaller
+      - name: Copy static files (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force desktop/static -ErrorAction SilentlyContinue
+          Copy-Item -Recurse addin/dist desktop/static
+          Copy-Item addin/public/icon.png desktop/icon.png -ErrorAction SilentlyContinue
+
+      - name: Run PyInstaller (macOS)
+        if: runner.os == 'macOS'
         run: python -m PyInstaller desktop/ExcelFormulaAI.spec --clean --noconfirm --distpath dist --workpath build
-        shell: bash
+
+      - name: Run PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        run: python -m PyInstaller desktop/ExcelFormulaAI.spec --clean --noconfirm --distpath dist --workpath build
+
+      - name: Verify output (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "=== dist 目录内容 ==="
+          Get-ChildItem -Recurse dist | ForEach-Object { Write-Host "$($_.Length) bytes  $($_.FullName)" }
+
+      - name: Verify output (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "=== dist 目录内容 ==="
+          ls -lhR dist/
 
       - name: Create DMG (macOS only)
-        if: matrix.os == 'macos-latest'
-        shell: bash
+        if: runner.os == 'macOS'
         run: |
           TMP_DMG=$(mktemp -d)
           cp -R dist/ExcelFormulaAI.app "$TMP_DMG/"

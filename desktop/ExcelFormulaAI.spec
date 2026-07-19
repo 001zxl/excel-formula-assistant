@@ -25,7 +25,7 @@ a = Analysis(
         # 图标（托盘用）
         (str(_DESKTOP_DIR / "icon.png"), "."),
     ],
-    hiddenimports=[
+    hiddenimports=[x for x in [
         "fastapi",
         "uvicorn",
         "uvicorn.loops",
@@ -37,8 +37,8 @@ a = Analysis(
         "uvicorn.protocols.websockets.auto",
         "httpx",
         "openpyxl",
-        "rumps",
-        "pystray",
+        "rumps" if _IS_MAC else None,
+        "pystray" if _IS_WIN else None,
         "PIL",
         "PIL.Image",
         "PIL.ImageDraw",
@@ -52,7 +52,7 @@ a = Analysis(
         "engine.ai_client",
         "engine.response_parser",
         "config",
-    ],
+    ] if x is not None],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
