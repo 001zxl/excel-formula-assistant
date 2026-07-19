@@ -1,6 +1,6 @@
 """统一桌面服务器 — 同时服务 React 前端 + AI API 代理。
 
-运行在 localhost:8100 (HTTPS)，一个端口解决所有需求：
+运行在 localhost:8100 (HTTP)，一个端口解决所有需求：
   /                    → React 静态文件（Excel 侧边栏插件）
   /api/generate-formula → AI 公式生成
   /api/settings         → API Key 读写
@@ -98,7 +98,7 @@ async def health():
 
 
 @app.post("/api/generate-formula")
-async def generate_formula(req: FormulaRequest):
+def generate_formula(req: FormulaRequest):
     """接收 Excel 插件发送的自然语言请求，返回生成的公式。"""
     logger.info(f"Generate: '{req.request[:80]}...' on {req.sheet_name}")
 
@@ -185,6 +185,26 @@ async def settings_page():
     if _SETTINGS_HTML.exists():
         return FileResponse(_SETTINGS_HTML, media_type="text/html; charset=utf-8")
     return JSONResponse(status_code=404, content={"error": "settings.html not found"})
+
+
+@app.get("/manifest.xml")
+async def manifest_xml():
+    """返回 Excel 侧边栏插件的 manifest 文件。"""
+    manifest = _RESOURCE_DIR / "manifest.xml"
+    if manifest.exists():
+        return FileResponse(manifest, media_type="application/xml; charset=utf-8")
+    return JSONResponse(status_code=404, content={"error": "manifest.xml not found"})
+
+
+@app.get("/icon.png")
+async def icon_png():
+    """返回 App 图标（托盘 / Office 侧边栏使用）。"""
+    icon = _STATIC_DIR / "icon.png"
+    if not icon.exists():
+        icon = _RESOURCE_DIR / "icon.png"
+    if icon.exists():
+        return FileResponse(icon, media_type="image/png")
+    return JSONResponse(status_code=404, content={"error": "icon.png not found"})
 
 
 # ====================================================================
@@ -321,30 +341,6 @@ def run_server(host: str = "127.0.0.1", port: int | None = None) -> int:
         log_level="info",
     )
     return port
-
-
-def _generate_self_signed_cert(cert_path: Path, key_path: Path) -> None:
-    """生成自签名 SSL 证书。"""
-    import subprocess
-
-    logger.info("Generating self-signed SSL certificate...")
-    cert_path.parent.mkdir(parents=True, exist_ok=True)
-
-    subprocess.run(
-        [
-            "openssl", "req", "-x509", "-newkey", "rsa:2048",
-            "-keyout", str(key_path),
-            "-out", str(cert_path),
-            "-days", "3650",
-            "-nodes",
-            "-subj", "/CN=localhost/O=ExcelFormulaAI",
-            "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1",
-        ],
-        check=True,
-        capture_output=True,
-    )
-    key_path.chmod(0o600)
-    logger.info(f"SSL cert created: {cert_path}")
 
 
 if __name__ == "__main__":

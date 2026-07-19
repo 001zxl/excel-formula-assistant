@@ -250,9 +250,12 @@
     }
 
     function openManifest() {
-      // 尝试打开 manifest.xml 所在文件夹
-      // 桌面应用中通过自定义协议或直接提示路径
-      window.open(`${API_BASE}/manifest.xml`, "_blank");
+      const a = document.createElement("a");
+      a.href = `${API_BASE}/manifest.xml`;
+      a.download = "manifest.xml";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
 
     // 页面加载时获取状态

@@ -55,6 +55,7 @@ def _check_api_key() -> bool:
 
 
 def _start_server(port: int):
+    print(f"正在启动服务器: http://127.0.0.1:{port}")
     from desktop.server import run_server
     try:
         run_server(host="127.0.0.1", port=port)
@@ -65,36 +66,69 @@ def _start_server(port: int):
             mb.showerror(
                 "Excel 公式助手 - 启动失败",
                 f"服务启动失败:\n{e}\n\n"
-                "可能原因:\n"
-                "1. 端口 {port} 被占用\n"
-                "2. Windows 防火墙拦截（请点击「允许访问」）\n"
-                "3. 杀毒软件拦截\n\n"
-                "请尝试重启应用或更换端口。"
+                f"可能原因:\n"
+                f"1. 端口 {port} 被占用\n"
+                f"2. Windows 防火墙拦截（请点击「允许访问」）\n"
+                f"3. 杀毒软件拦截\n\n"
+                f"请尝试重启应用或更换端口。"
             )
         except Exception:
             pass
 
 
 def _configure_windows_firewall():
-    """尝试添加 Windows 防火墙例外（非管理员也可添加当前用户的规则）。"""
+    """尝试添加 Windows 防火墙例外（管理员权限下自动添加，否则给出指引）。"""
     if sys.platform != "win32":
         return
     import subprocess
+    import ctypes
+
+    # 检查是否以管理员身份运行
+    is_admin = False
     try:
-        # 先检查规则是否已存在
+        is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except Exception:
+        pass
+
+    print(f"[防火墙] 管理员权限: {'是' if is_admin else '否（首次运行请在弹出的安全对话框中点击「允许访问」）'}")
+
+    try:
         result = subprocess.run(
             'netsh advfirewall firewall show rule name="Excel公式助手"',
-            shell=True, capture_output=True, text=True, timeout=5
+            shell=True, capture_output=True, text=True, timeout=5,
         )
-        if "未找到" in result.stdout or "No rules match" in result.stdout:
+        if "未找到" not in result.stdout and "No rules match" not in result.stdout:
+            print("[防火墙] 规则已存在，跳过")
+            return
+
+        if is_admin:
             exe_path = sys.executable
-            subprocess.run(
+            r = subprocess.run(
                 f'netsh advfirewall firewall add rule name="Excel公式助手" dir=in action=allow program="{exe_path}" enable=yes',
-                shell=True, capture_output=True, timeout=5
+                shell=True, capture_output=True, text=True, timeout=10,
             )
-            print("Windows 防火墙规则已添加")
+            if r.returncode == 0:
+                print("[防火墙] 规则已自动添加")
+            else:
+                print(f"[防火墙] 添加失败: {r.stderr.strip()}")
+        else:
+            print("[防火墙] 当前非管理员，无法自动添加防火墙规则")
+            print("[防火墙] Windows 安全警报弹出时请点击「允许访问」或「取消」不影响使用")
+    except Exception as e:
+        print(f"[防火墙] 配置异常（非致命）: {e}")
+
+
+def _check_port_accessible(port: int, timeout: float = 3.0) -> bool:
+    """验证端口是否已启动并监听。"""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        result = s.connect_ex(("127.0.0.1", port))
+        s.close()
+        return result == 0
     except Exception:
-        pass  # 非致命错误
+        return False
 
 
 # ====================================================================
@@ -169,6 +203,12 @@ def _run_win_tray(port: int):
     server_thread = threading.Thread(target=_start_server, args=(port,), daemon=True)
     server_thread.start()
     import time; time.sleep(3)  # Windows 启动较慢，多等等
+
+    if _check_port_accessible(port):
+        print(f"[启动] 服务器已就绪: http://localhost:{port}")
+    else:
+        print(f"[启动] 警告: 端口 {port} 无法访问，可能是防火墙或杀毒软件拦截")
+        print(f"[启动] 请检查 Windows 安全中心，允许 ExcelFormulaAI.exe 通过防火墙")
 
     def _load_icon():
         from PIL import Image as PILImage, ImageDraw

@@ -38,7 +38,7 @@ jobs:
 
       - name: Install Python dependencies (Windows)
         if: runner.os == 'Windows'
-        run: pip install pystray pillow pyinstaller fastapi "uvicorn[standard]" httpx openpyxl
+        run: pip install -r desktop/requirements.txt
 
       - name: Install Node dependencies
         working-directory: addin

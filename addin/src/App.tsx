@@ -179,7 +179,20 @@ export default function App() {
             <label>模型</label>
             <input type="text" value="deepseek-v4-pro" readOnly />
           </div>
-          <p className="hint">API Key 和模型配置在本地代理服务器中管理，不会暴露在插件中。</p>
+          <div className="setting-item">
+            <label>API Key</label>
+            <button
+              className="btn-primary"
+              style={{ padding: "8px 16px", cursor: "pointer" }}
+              onClick={() => {
+                const url = window.location.origin + "/settings";
+                window.open(url, "_blank");
+              }}
+            >
+              打开 API Key 配置页面
+            </button>
+          </div>
+          <p className="hint">点击上方按钮在浏览器中配置你的 DeepSeek API Key。也可通过系统托盘菜单 → "打开设置…" 进入。</p>
         </div>
       )}
     </div>
