@@ -55,7 +55,7 @@ def _check_api_key() -> bool:
 
 
 def _start_server(port: int):
-    print(f"正在启动服务器: http://127.0.0.1:{port}")
+    print(f"正在启动服务器: https://127.0.0.1:{port}")
     from desktop.server import run_server
     try:
         run_server(host="127.0.0.1", port=port)
@@ -131,12 +131,52 @@ def _check_port_accessible(port: int, timeout: float = 3.0) -> bool:
         return False
 
 
+def _install_cert_trust():
+    """将自签名证书添加到系统信任库（避免浏览器和 Excel 拦截）。"""
+    from pathlib import Path
+    cert_path = Path.home() / ".excel-formula-assistant" / "cert.pem"
+    if not cert_path.exists():
+        return
+
+    if sys.platform == "darwin":
+        import subprocess
+        try:
+            subprocess.run(
+                ["security", "add-trusted-cert", "-d", "-r", "trustRoot",
+                 "-k", str(Path.home() / "Library" / "Keychains" / "login.keychain-db"),
+                 str(cert_path)],
+                capture_output=True, timeout=10,
+            )
+            print("[证书] 已添加到 macOS 钥匙串信任库")
+        except Exception as e:
+            print(f"[证书] macOS 信任添加失败（非致命）: {e}")
+
+    elif sys.platform == "win32":
+        import subprocess
+        try:
+            r = subprocess.run(
+                ["certutil", "-addstore", "-user", "Root", str(cert_path)],
+                capture_output=True, text=True, timeout=10,
+            )
+            if r.returncode == 0:
+                print("[证书] 已添加到 Windows 受信任根证书")
+            else:
+                print(f"[证书] Windows 信任添加失败: {r.stderr.strip()}")
+        except Exception as e:
+            print(f"[证书] Windows 信任添加异常（非致命）: {e}")
+
+
 # ====================================================================
 # macOS — rumps 菜单栏应用
 # ====================================================================
 
 def _run_mac_tray(port: int):
     import rumps
+    from desktop.server import _ensure_ssl_cert
+
+    # 确保证书存在 + 添加到系统信任库
+    _ensure_ssl_cert()
+    _install_cert_trust()
 
     server_thread = threading.Thread(target=_start_server, args=(port,), daemon=True)
     server_thread.start()
@@ -165,7 +205,7 @@ def _run_mac_tray(port: int):
 
         @rumps.clicked("打开设置…")
         def open_settings(self, _):
-            _open_url(f"http://localhost:{self._port}/settings")
+            _open_url(f"https://localhost:{self._port}/settings")
 
         @rumps.clicked("在 Excel 中加载插件")
         def load_addin(self, _):
@@ -182,7 +222,7 @@ def _run_mac_tray(port: int):
                     "关于 Excel 公式助手 v1.0",
                     "AI 驱动的 Excel 公式生成工具\n\n"
                     f"API Key: {'✅ 已配置' if configured else '⚠️ 未配置'}\n"
-                    "服务器: http://localhost:8100\n\n"
+                    "服务器: https://localhost:8100\n\n"
                     "在 Excel 侧边栏中用自然语言描述需求，AI 自动生成公式。",
                 )
             except Exception:
@@ -197,15 +237,20 @@ def _run_mac_tray(port: int):
 
 def _run_win_tray(port: int):
     import pystray
+    from desktop.server import _ensure_ssl_cert
 
     _configure_windows_firewall()
+
+    # 确保证书存在 + 添加到系统信任库
+    _ensure_ssl_cert()
+    _install_cert_trust()
 
     server_thread = threading.Thread(target=_start_server, args=(port,), daemon=True)
     server_thread.start()
     import time; time.sleep(3)  # Windows 启动较慢，多等等
 
     if _check_port_accessible(port):
-        print(f"[启动] 服务器已就绪: http://localhost:{port}")
+        print(f"[启动] 服务器已就绪: https://localhost:{port}")
     else:
         print(f"[启动] 警告: 端口 {port} 无法访问，可能是防火墙或杀毒软件拦截")
         print(f"[启动] 请检查 Windows 安全中心，允许 ExcelFormulaAI.exe 通过防火墙")
@@ -227,7 +272,7 @@ def _run_win_tray(port: int):
     menu = pystray.Menu(
         pystray.MenuItem("状态: " + ("✅ 已配置" if _check_api_key() else "⚠️ 未配置"), _noop, enabled=False),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("打开设置…", lambda: _open_url(f"http://localhost:{port}/settings"), default=True),
+        pystray.MenuItem("打开设置…", lambda: _open_url(f"https://localhost:{port}/settings"), default=True),
         pystray.MenuItem("在 Excel 中加载插件", lambda: _open_file_location(_find_manifest()) if _find_manifest() else None),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("退出", lambda icon: icon.stop()),

@@ -4,7 +4,7 @@ import { buildContextPrompt } from "./excelService";
 // 代理地址：打包模式用当前 origin（与服务器同端口），开发模式用 localhost:8100
 const PROXY_URL =
   window.location.port === "3000"
-    ? "http://localhost:8100"
+    ? "https://localhost:8100"
     : window.location.origin;
 
 // 调用后端生成公式

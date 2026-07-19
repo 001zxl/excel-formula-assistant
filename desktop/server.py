@@ -320,24 +320,65 @@ def _find_free_port(start: int = 8100, attempts: int = 4) -> int:
     return start  # fallback
 
 
-def run_server(host: str = "127.0.0.1", port: int | None = None) -> int:
-    """启动 FastAPI 服务器（HTTP）。返回实际端口号。
+def _ensure_ssl_cert() -> tuple[Path, Path]:
+    """确保证书存在，不存在则自动生成。返回 (cert_path, key_path)。"""
+    from config import get_config_dir
 
-    本地 localhost 使用 HTTP，避免自签名证书在浏览器被拦截。
-    Office 侧边栏加载本地插件允许 HTTP。
+    cert_dir = get_config_dir()
+    cert_path = cert_dir / "cert.pem"
+    key_path = cert_dir / "key.pem"
+
+    if not cert_path.exists() or not key_path.exists():
+        _generate_self_signed_cert(cert_path, key_path)
+
+    return cert_path, key_path
+
+
+def _generate_self_signed_cert(cert_path: Path, key_path: Path) -> None:
+    """生成自签名 SSL 证书。"""
+    import subprocess
+
+    logger.info("Generating self-signed SSL certificate...")
+    cert_path.parent.mkdir(parents=True, exist_ok=True)
+
+    subprocess.run(
+        [
+            "openssl", "req", "-x509", "-newkey", "rsa:2048",
+            "-keyout", str(key_path),
+            "-out", str(cert_path),
+            "-days", "3650",
+            "-nodes",
+            "-subj", "/CN=localhost/O=ExcelFormulaAI",
+            "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    key_path.chmod(0o600)
+    logger.info(f"SSL cert created: {cert_path}")
+
+
+def run_server(host: str = "127.0.0.1", port: int | None = None) -> int:
+    """启动 FastAPI 服务器（HTTPS）。返回实际端口号。
+
+    使用自签名证书 + 系统信任库自动注册，
+    确保浏览器设置页和 Excel 侧边栏都能正常加载。
     """
     import uvicorn
 
     if port is None:
         port = _find_free_port()
 
-    logger.info(f"Starting server on http://{host}:{port}")
+    cert_path, key_path = _ensure_ssl_cert()
+    logger.info(f"Starting server on https://{host}:{port}")
     logger.info(f"Static files: {_STATIC_DIR}")
 
     uvicorn.run(
         app,
         host=host,
         port=port,
+        ssl_keyfile=str(key_path),
+        ssl_certfile=str(cert_path),
         log_level="info",
     )
     return port

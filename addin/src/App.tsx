@@ -173,7 +173,7 @@ export default function App() {
           <h3>设置</h3>
           <div className="setting-item">
             <label>代理服务器</label>
-            <input type="text" value="http://localhost:8100" readOnly />
+            <input type="text" value="https://localhost:8100" readOnly />
           </div>
           <div className="setting-item">
             <label>模型</label>
