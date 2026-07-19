@@ -78,7 +78,7 @@ if _IS_MAC:
     _bundle_identifier = "com.excelformula.assistant"
     _info_plist = {
         "NSHighResolutionCapable": True,
-        "LSUIElement": True,  # 不显示 Dock 图标
+        "LSUIElement": True,
         "CFBundleName": "Excel公式助手",
         "CFBundleDisplayName": "Excel 公式助手",
         "CFBundleShortVersionString": "1.0.0",
@@ -90,7 +90,7 @@ if _IS_MAC:
     }
 elif _IS_WIN:
     _icon_path = str(_DESKTOP_DIR / "icon.png")
-    _console = False
+    _console = True  # 显示控制台窗口，便于排查防火墙/端口问题
     _bundle_identifier = None
     _info_plist = None
 else:

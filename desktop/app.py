@@ -56,7 +56,45 @@ def _check_api_key() -> bool:
 
 def _start_server(port: int):
     from desktop.server import run_server
-    run_server(host="127.0.0.1", port=port)
+    try:
+        run_server(host="127.0.0.1", port=port)
+    except Exception as e:
+        # 弹出错误提示（跨平台）
+        try:
+            import tkinter.messagebox as mb
+            mb.showerror(
+                "Excel 公式助手 - 启动失败",
+                f"服务启动失败:\n{e}\n\n"
+                "可能原因:\n"
+                "1. 端口 {port} 被占用\n"
+                "2. Windows 防火墙拦截（请点击「允许访问」）\n"
+                "3. 杀毒软件拦截\n\n"
+                "请尝试重启应用或更换端口。"
+            )
+        except Exception:
+            pass
+
+
+def _configure_windows_firewall():
+    """尝试添加 Windows 防火墙例外（非管理员也可添加当前用户的规则）。"""
+    if sys.platform != "win32":
+        return
+    import subprocess
+    try:
+        # 先检查规则是否已存在
+        result = subprocess.run(
+            'netsh advfirewall firewall show rule name="Excel公式助手"',
+            shell=True, capture_output=True, text=True, timeout=5
+        )
+        if "未找到" in result.stdout or "No rules match" in result.stdout:
+            exe_path = sys.executable
+            subprocess.run(
+                f'netsh advfirewall firewall add rule name="Excel公式助手" dir=in action=allow program="{exe_path}" enable=yes',
+                shell=True, capture_output=True, timeout=5
+            )
+            print("Windows 防火墙规则已添加")
+    except Exception:
+        pass  # 非致命错误
 
 
 # ====================================================================
@@ -126,9 +164,11 @@ def _run_mac_tray(port: int):
 def _run_win_tray(port: int):
     import pystray
 
+    _configure_windows_firewall()
+
     server_thread = threading.Thread(target=_start_server, args=(port,), daemon=True)
     server_thread.start()
-    import time; time.sleep(2)
+    import time; time.sleep(3)  # Windows 启动较慢，多等等
 
     def _load_icon():
         from PIL import Image as PILImage, ImageDraw
