@@ -300,6 +300,14 @@ if _STATIC_DIR.exists() and (_STATIC_DIR / "index.html").exists():
             media_type="text/html; charset=utf-8",
         )
 
+    @app.get("/index.html")
+    async def index_html_exact():
+        """Excel 加载项请求的精确路径。"""
+        return FileResponse(
+            _STATIC_DIR / "index.html",
+            media_type="text/html; charset=utf-8",
+        )
+
     logger.info(f"Serving React static files from {_STATIC_DIR}")
 else:
     logger.warning(f"Static dir not found or missing index.html: {_STATIC_DIR}")
@@ -320,57 +328,142 @@ def _find_free_port(start: int = 8100, attempts: int = 4) -> int:
     return start  # fallback
 
 
-def _ensure_ssl_cert() -> tuple[Path, Path]:
-    """确保证书存在，不存在则自动生成。返回 (cert_path, key_path)。"""
+def _ensure_ssl_cert() -> tuple[Path, Path, Path]:
+    """确保 CA 根证书 + 服务器证书都存在。返回 (ca_cert_path, server_cert_path, server_key_path)。
+
+    采用 mkcert 模型：CA 根证书加入系统信任库一次，服务器证书由 CA 签发，
+    浏览器/Excel 验证服务器证书时沿信任链找到 CA → 通过。
+    """
     from config import get_config_dir
 
     cert_dir = get_config_dir()
-    cert_path = cert_dir / "cert.pem"
-    key_path = cert_dir / "key.pem"
+    ca_key_path = cert_dir / "ca-key.pem"
+    ca_cert_path = cert_dir / "ca-cert.pem"
+    server_key_path = cert_dir / "key.pem"
+    server_cert_path = cert_dir / "cert.pem"
 
-    if not cert_path.exists() or not key_path.exists():
-        _generate_self_signed_cert(cert_path, key_path)
+    # 1. CA 根证书（长期有效，只生成一次）
+    if not ca_key_path.exists() or not ca_cert_path.exists():
+        # 迁移：删除旧的自签名证书（它们不是 CA 签发的，无法通过验证）
+        for old in [server_cert_path, server_key_path, ca_key_path, ca_cert_path]:
+            if old.exists():
+                old.unlink()
+                logger.info(f"已删除旧证书: {old.name}")
+        _generate_ca_cert(ca_key_path, ca_cert_path)
 
-    return cert_path, key_path
+    # 2. 服务器证书（由 CA 签发）
+    #    以下情况重新生成：不存在 / CA 比服务器证书新
+    regenerate = not server_key_path.exists() or not server_cert_path.exists()
+    if not regenerate and ca_cert_path.stat().st_mtime > server_cert_path.stat().st_mtime:
+        server_cert_path.unlink()
+        server_key_path.unlink()
+        regenerate = True
+        logger.info("CA 已更新，重新签发服务器证书")
+
+    if regenerate:
+        _generate_server_cert(ca_key_path, ca_cert_path, server_key_path, server_cert_path)
+
+    return ca_cert_path, server_cert_path, server_key_path
 
 
-def _generate_self_signed_cert(cert_path: Path, key_path: Path) -> None:
-    """生成自签名 SSL 证书（纯 Python，不依赖外部 CLI，Windows/macOS 通用）。"""
+def _generate_ca_cert(ca_key_path: Path, ca_cert_path: Path) -> None:
+    """生成本地 CA 根证书。该证书会被加入系统信任库。"""
     import datetime
-    import ipaddress
 
     from cryptography import x509
     from cryptography.x509.oid import NameOID
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.hazmat.primitives.serialization import (
-        Encoding,
-        PrivateFormat,
-        NoEncryption,
+        Encoding, PrivateFormat, NoEncryption,
     )
 
-    logger.info("Generating self-signed SSL certificate (cryptography)...")
-    cert_path.parent.mkdir(parents=True, exist_ok=True)
+    logger.info("生成 CA 根证书...")
+    ca_key_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 1. 生成 RSA 私钥
-    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
-    # 2. 构建 X.509 证书
-    subject = issuer = x509.Name([
+    subject = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, "ExcelFormulaAI Local CA"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "ExcelFormulaAI"),
+    ])
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    ca_cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(subject)  # 自签名
+        .public_key(ca_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now)
+        .not_valid_after(now + datetime.timedelta(days=7300))  # 20 年
+        .add_extension(
+            x509.BasicConstraints(ca=True, path_length=0),
+            critical=True,
+        )
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                key_encipherment=False,
+                key_cert_sign=True,   # CA 必须：允许签发子证书
+                crl_sign=True,        # CA 必须：允许签发吊销列表
+                content_commitment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .sign(ca_key, hashes.SHA256())
+    )
+
+    ca_key_path.write_bytes(ca_key.private_bytes(
+        Encoding.PEM, PrivateFormat.TraditionalOpenSSL, NoEncryption()))
+    ca_key_path.chmod(0o600)
+    ca_cert_path.write_bytes(ca_cert.public_bytes(Encoding.PEM))
+    logger.info(f"CA 根证书已创建: {ca_cert_path}")
+
+
+def _generate_server_cert(
+    ca_key_path: Path, ca_cert_path: Path,
+    server_key_path: Path, server_cert_path: Path,
+) -> None:
+    """由 CA 签发 localhost 服务器证书。"""
+    import datetime
+    import ipaddress
+
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives.serialization import (
+        Encoding, PrivateFormat, NoEncryption,
+    )
+
+    logger.info("由 CA 签发 localhost 服务器证书...")
+
+    # 加载 CA 私钥和证书
+    ca_key = _load_private_key(ca_key_path.read_bytes())
+    ca_cert = x509.load_pem_x509_certificate(ca_cert_path.read_bytes())
+
+    # 生成服务器私钥
+    server_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+    subject = x509.Name([
         x509.NameAttribute(NameOID.COMMON_NAME, "localhost"),
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, "ExcelFormulaAI"),
     ])
 
     now = datetime.datetime.now(datetime.timezone.utc)
-    cert = (
+    server_cert = (
         x509.CertificateBuilder()
         .subject_name(subject)
-        .issuer_name(issuer)
-        .public_key(private_key.public_key())
+        .issuer_name(ca_cert.subject)  # ← 由 CA 签发
+        .public_key(server_key.public_key())
         .serial_number(x509.random_serial_number())
         .not_valid_before(now)
-        .not_valid_after(now + datetime.timedelta(days=3650))
-        # SAN：浏览器 / Excel 校验证书域名必须匹配
+        .not_valid_after(now + datetime.timedelta(days=825))
         .add_extension(
             x509.SubjectAlternativeName([
                 x509.DNSName("localhost"),
@@ -378,12 +471,10 @@ def _generate_self_signed_cert(cert_path: Path, key_path: Path) -> None:
             ]),
             critical=False,
         )
-        # 标记为终端实体证书（非 CA）
         .add_extension(
             x509.BasicConstraints(ca=False, path_length=None),
             critical=True,
         )
-        # 密钥用途：数字签名 + 密钥加密（TLS 握手必需）
         .add_extension(
             x509.KeyUsage(
                 digital_signature=True,
@@ -398,25 +489,29 @@ def _generate_self_signed_cert(cert_path: Path, key_path: Path) -> None:
             ),
             critical=True,
         )
-        # 扩展密钥用途：服务器认证
         .add_extension(
-            x509.ExtendedKeyUsage([x509.oid.ExtendedKeyUsageOID.SERVER_AUTH]),
+            x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]),
             critical=False,
         )
-        .sign(private_key, hashes.SHA256())
+        .sign(ca_key, hashes.SHA256())  # ← CA 私钥签名
     )
 
-    # 3. 写入磁盘
-    key_path.write_bytes(
-        private_key.private_bytes(
-            Encoding.PEM,
-            PrivateFormat.TraditionalOpenSSL,
-            NoEncryption(),
-        )
+    server_key_path.write_bytes(server_key.private_bytes(
+        Encoding.PEM, PrivateFormat.TraditionalOpenSSL, NoEncryption()))
+    server_key_path.chmod(0o600)
+    server_cert_path.write_bytes(server_cert.public_bytes(Encoding.PEM))
+    logger.info(f"服务器证书已创建: {server_cert_path}")
+
+
+def _load_private_key(data: bytes):
+    """加载 PEM 格式私钥。"""
+    from cryptography.hazmat.primitives.serialization import (
+        NoEncryption,
     )
-    key_path.chmod(0o600)
-    cert_path.write_bytes(cert.public_bytes(Encoding.PEM))
-    logger.info(f"SSL cert created: {cert_path}")
+    from cryptography.hazmat.primitives.serialization import (
+        load_pem_private_key,
+    )
+    return load_pem_private_key(data, password=None)
 
 
 def run_server(host: str = "127.0.0.1", port: int | None = None) -> int:
@@ -430,7 +525,7 @@ def run_server(host: str = "127.0.0.1", port: int | None = None) -> int:
     if port is None:
         port = _find_free_port()
 
-    cert_path, key_path = _ensure_ssl_cert()
+    ca_cert_path, cert_path, key_path = _ensure_ssl_cert()
     logger.info(f"Starting server on https://{host}:{port}")
     logger.info(f"Static files: {_STATIC_DIR}")
 

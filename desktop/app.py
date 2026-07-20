@@ -139,9 +139,9 @@ def _install_cert_trust():
     from pathlib import Path
     import subprocess
 
-    cert_path = Path.home() / ".excel-formula-assistant" / "cert.pem"
+    cert_path = Path.home() / ".excel-formula-assistant" / "ca-cert.pem"
     if not cert_path.exists():
-        print("[证书] 证书文件不存在，跳过信任安装")
+        print("[证书] CA 证书文件不存在，跳过信任安装")
         return
 
     if sys.platform == "darwin":
